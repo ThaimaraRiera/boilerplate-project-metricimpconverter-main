@@ -1,39 +1,61 @@
-
 'use strict';
 
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
+const express     = require('express');
+const bodyParser  = require('body-parser');
+const expect      = require('chai').expect; // (FCC lo usa en su runner)
+const cors        = require('cors');
 require('dotenv').config();
 
-const apiRoutes = require('./routes/api.js');
+const apiRoutes         = require('./routes/api.js');
+const fccTestingRoutes  = require('./routes/fcctesting.js');
+const runner            = require('./test-runner');
 
-const app = express();
-app.use(cors({ origin: '*' }));
-app.use('/public', express.static(path.join(process.cwd(), 'public')));
+let app = express();
 
-// Index page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'views', 'index.html'));
-});
+app.use('/public', express.static(process.cwd() + '/public'));
 
-// FCC test routes (optional placeholder)
-try {
-  const fccTestingRoutes  = require('./routes/fcctesting.js');
-  fccTestingRoutes(app);
-} catch(e) { /* ignore in our sandbox */ }
+app.use(cors({ origin: '*' })); // Para FCC testing
 
-// API routes
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Página index (HTML estático)
+app.route('/')
+  .get(function (req, res) {
+    res.sendFile(process.cwd() + '/views/index.html');
+  });
+
+// Rutas de testing de FCC
+fccTestingRoutes(app);
+
+// Ruteo del API
 apiRoutes(app);
 
-// 404
-app.use((req, res) => res.status(404).type('text').send('Not Found'));
+// Middleware 404
+app.use(function(req, res, next) {
+  res.status(404)
+    .type('text')
+    .send('Not Found');
+});
 
 const port = process.env.PORT || 3000;
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(port, () => console.log(`Server listening on port ${port}`));
-} else {
-  // In test mode export without listening to allow chai-http to bind
-}
 
+// Start del server y ejecución de tests si corresponde
+const server = app.listen(port, function () {
+  console.log('Listening on port ' + port);
+  if (process.env.NODE_ENV === 'test') {
+    console.log('Running Tests...');
+    setTimeout(function () {
+      try {
+        runner.run();
+      } catch (e) {
+        console.log('Tests are not valid:');
+        console.error(e);
+      }
+    }, 1500);
+  }
+});
+
+// Export para pruebas (chai-http usa este export)
 module.exports = app;
+
